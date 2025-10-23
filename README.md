@@ -118,4 +118,4 @@ We are **not responsible** for any bans, penalties, or issues that may result fr
 ## 💬 Community & Support
 
 Join our Discord to connect with other users, get support, and share ideas:  
-[discord.gg/wGxdgADCbZ](https://discord.gg/wGxdgADCbZ).
+[discord.gg/wGxdgADCbZ](https://discord.gg/wGxdgADCbZ)
