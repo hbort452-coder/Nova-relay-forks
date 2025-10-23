@@ -80,15 +80,12 @@ class AutoCodecPacketListener(
                 }
 
                 val networkSettingsPacket = NetworkSettingsPacket()
-                networkSettingsPacket.compressionThreshold = 1
+                networkSettingsPacket.compressionThreshold = 0
                 networkSettingsPacket.compressionAlgorithm = PacketCompressionAlgorithm.ZLIB
-                networkSettingsPacket.clientThrottleEnabled = false
-                networkSettingsPacket.clientThrottleThreshold = 0
-                networkSettingsPacket.clientThrottleScalar = 0.0f
 
                 novaRelaySession.clientBoundImmediately(networkSettingsPacket)
                 novaRelaySession.server.setCompression(PacketCompressionAlgorithm.ZLIB)
-                println("Sent NetworkSettings(ZLIB, threshold=1) and enabled server compression")
+                println("Client enabled compression: ZLIB")
             } catch (e: Exception) {
                 println("Failed to process network settings: ${e.message}")
                 e.printStackTrace()
