@@ -54,6 +54,8 @@ class AutoCodecPacketListener(
         }
     }
 
+    private var serverConnectStarted: Boolean = false
+
     override fun beforeClientBound(packet: BedrockPacket): Boolean {
         if (packet is RequestNetworkSettingsPacket) {
             try {
@@ -86,6 +88,22 @@ class AutoCodecPacketListener(
                 val msgCompress = "Sent NetworkSettings(ZLIB, threshold=1) and enabled server compression"
                 println(msgCompress)
                 logger?.invoke(msgCompress)
+
+                // Ensure upstream server connection starts as early as possible and request its settings
+                if (!serverConnectStarted) {
+                    serverConnectStarted = true
+                    val msgConn = "Initiating upstream connection and requesting NetworkSettings"
+                    println(msgConn)
+                    logger?.invoke(msgConn)
+                    novaRelaySession.novaRelay.connectToServer {
+                        val req = RequestNetworkSettingsPacket()
+                        req.protocolVersion = protocolVersion
+                        novaRelaySession.serverBoundImmediately(req)
+                        val msgReq = "Forwarded RequestNetworkSettings to upstream with protocol=$protocolVersion"
+                        println(msgReq)
+                        logger?.invoke(msgReq)
+                    }
+                }
             } catch (e: Exception) {
                 val err = "Failed to process network settings: ${e.message}"
                 println(err)
