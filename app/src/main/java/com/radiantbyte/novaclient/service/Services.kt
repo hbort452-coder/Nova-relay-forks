@@ -234,9 +234,9 @@ object Services {
                                 logLine("Disconnected: $reason")
                             }
                         })
-                        listeners.add(AutoCodecPacketListener(this))
+                        listeners.add(AutoCodecPacketListener(this) { msg -> logLine(msg) })
                         if (selectedAccount == null) {
-                            listeners.add(OfflineLoginPacketListener(this))
+                            listeners.add(OfflineLoginPacketListener(this) { msg -> logLine(msg) })
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
                         }
@@ -264,9 +264,9 @@ object Services {
                                 logLine("Disconnected: $reason")
                             }
                         })
-                        listeners.add(AutoCodecPacketListener(this))
+                        listeners.add(AutoCodecPacketListener(this) { msg -> logLine(msg) })
                         if (selectedAccount == null) {
-                            listeners.add(OfflineLoginPacketListener(this))
+                            listeners.add(OfflineLoginPacketListener(this) { msg -> logLine(msg) })
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
                         }

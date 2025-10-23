@@ -17,7 +17,8 @@ import java.util.Base64
 @Suppress("MemberVisibilityCanBePrivate")
 class OfflineLoginPacketListener(
     val novaRelaySession: NovaRelaySession,
-    val keyPair: KeyPair = DefaultKeyPair
+    val keyPair: KeyPair = DefaultKeyPair,
+    private val logger: ((String) -> Unit)? = null
 ) : NovaRelayPacketListener {
 
     companion object {
@@ -47,6 +48,7 @@ class OfflineLoginPacketListener(
                     )
 
                 println("Handle offline login data")
+                logger?.invoke("Handle offline login data")
 
                 val jws = JsonWebSignature()
                 jws.compactSerialization = packet.clientJwt
@@ -62,12 +64,16 @@ class OfflineLoginPacketListener(
     override fun beforeServerBound(packet: BedrockPacket): Boolean {
         if (packet is NetworkSettingsPacket) {
             val threshold = packet.compressionThreshold
-            if (threshold > 0) {
+                if (threshold > 0) {
                 novaRelaySession.client!!.setCompression(packet.compressionAlgorithm)
-                println("Compression threshold set to $threshold")
+                val msg = "Compression threshold set to $threshold"
+                println(msg)
+                logger?.invoke(msg)
             } else {
                 novaRelaySession.client!!.setCompression(PacketCompressionAlgorithm.NONE)
-                println("Compression threshold set to 0")
+                val msg = "Compression threshold set to 0"
+                println(msg)
+                logger?.invoke(msg)
             }
 
             try {
@@ -82,11 +88,14 @@ class OfflineLoginPacketListener(
                 novaRelaySession.serverBoundImmediately(loginPacket)
 
                 println("Login success")
+                logger?.invoke("Login success")
             } catch (e: Throwable) {
                 novaRelaySession.clientBound(DisconnectPacket().apply {
                     kickMessage = e.toString()
                 })
-                println("Login failed: $e")
+                val err = "Login failed: $e"
+                println(err)
+                logger?.invoke(err)
             }
 
             return true
@@ -117,11 +126,15 @@ class OfflineLoginPacketListener(
                 )
 
                 novaRelaySession.client!!.enableEncryption(key)
-                println("Encryption enabled successfully (offline)")
+                val msg = "Encryption enabled successfully (offline)"
+                println(msg)
+                logger?.invoke(msg)
 
                 novaRelaySession.serverBoundImmediately(ClientToServerHandshakePacket())
             } catch (e: Exception) {
-                println("Handshake failed (offline): ${e.message}")
+                val err = "Handshake failed (offline): ${e.message}"
+                println(err)
+                logger?.invoke(err)
                 e.printStackTrace()
                 novaRelaySession.server.disconnect("Handshake failed: ${e.message}")
                 return true
@@ -134,6 +147,7 @@ class OfflineLoginPacketListener(
     private fun connectServer() {
         novaRelaySession.novaRelay.connectToServer {
             println("Connected to server")
+            logger?.invoke("Connected to server")
 
             val packet = RequestNetworkSettingsPacket()
             packet.protocolVersion = novaRelaySession.server.codec.protocolVersion
