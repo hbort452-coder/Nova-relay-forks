@@ -11,6 +11,11 @@ jobs:
   build_and_release:
     runs-on: ubuntu-latest
     
+    # ---> ВОТ ЭТО ИЗМЕНЕНИЕ <---
+    # Предоставляем права на запись для создания релиза
+    permissions:
+      contents: write
+      
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -42,13 +47,9 @@ jobs:
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
       uses: softprops/action-gh-release@v2
       with:
-        # Имя релиза (например, "Release 25")
         name: "Release ${{ github.run_number }}"
-        # Тег будет равен номеру сборки
         tag_name: ${{ github.run_number }}
-        # Автоматически сгенерировать описание релиза
         generate_release_notes: true
-        # Файлы, которые нужно прикрепить к релизу
         files: |
           app/build/outputs/apk/debug/*.apk
           app/build/outputs/apk/release/*.apk
