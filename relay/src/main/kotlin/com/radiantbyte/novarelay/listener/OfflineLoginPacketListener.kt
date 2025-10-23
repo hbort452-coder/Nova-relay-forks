@@ -96,6 +96,7 @@ class OfflineLoginPacketListener(
 
                 val loginPacket = LoginPacket()
                 loginPacket.protocolVersion = novaRelaySession.server.codec.protocolVersion
+                println("Sending LoginPacket with protocol version: ${loginPacket.protocolVersion}")
                 val authPayload = CertificateChainPayload(chain, AuthType.SELF_SIGNED)
                 loginPacket.authPayload = authPayload
                 loginPacket.clientJwt = skinData

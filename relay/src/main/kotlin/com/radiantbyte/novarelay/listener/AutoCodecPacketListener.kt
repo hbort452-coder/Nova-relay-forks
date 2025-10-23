@@ -64,6 +64,10 @@ class AutoCodecPacketListener(
                 if (bedrockCodec.protocolVersion != protocolVersion) {
                     println("Using codec ${bedrockCodec.protocolVersion} for client protocol $protocolVersion (closest match)")
                 }
+                
+                // Force protocol version to match server expectations
+                packet.protocolVersion = bedrockCodec.protocolVersion
+                println("Adjusted protocol version to ${packet.protocolVersion} to match codec")
 
                 novaRelaySession.server.codec = bedrockCodec
                 novaRelaySession.server.peer.codecHelper.apply {
