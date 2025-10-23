@@ -72,7 +72,12 @@ class OfflineLoginPacketListener(
 
             try {
                 val chain = AuthUtilsOffline.fetchOfflineChain(keyPair, extraData!!, chain!!)
-                val skinData = AuthUtilsOffline.fetchOfflineSkinData(keyPair, skinData!!)
+                val skinData = AuthUtilsOffline.fetchOfflineSkinData(
+                    keyPair = keyPair,
+                    skinData = skinData!!,
+                    displayName = (extraData!!["displayName"] as? String),
+                    serverAddress = novaRelaySession.novaRelay.remoteAddress
+                )
 
                 val loginPacket = LoginPacket()
                 loginPacket.protocolVersion = novaRelaySession.server.codec.protocolVersion
