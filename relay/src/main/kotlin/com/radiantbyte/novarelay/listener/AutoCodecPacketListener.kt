@@ -13,7 +13,8 @@ import org.cloudburstmc.protocol.bedrock.packet.*
 @Suppress("MemberVisibilityCanBePrivate")
 class AutoCodecPacketListener(
     val novaRelaySession: NovaRelaySession,
-    val patchCodec: Boolean = true
+    val patchCodec: Boolean = true,
+    private val logger: ((String) -> Unit)? = null
 ) : NovaRelayPacketListener {
 
     companion object {
@@ -58,7 +59,9 @@ class AutoCodecPacketListener(
             try {
                 val protocolVersion = packet.protocolVersion
                 val bedrockCodec = patchCodecIfNeeded(fetchCodecIfClosest(protocolVersion))
-                println("Fetched bedrock codec: ${bedrockCodec.protocolVersion} for protocol: $protocolVersion")
+                val msgCodec = "Fetched bedrock codec: ${bedrockCodec.protocolVersion} for protocol: $protocolVersion"
+                println(msgCodec)
+                logger?.invoke(msgCodec)
 
                 novaRelaySession.server.codec = bedrockCodec
                 novaRelaySession.server.peer.codecHelper.apply {
@@ -80,9 +83,13 @@ class AutoCodecPacketListener(
 
                 novaRelaySession.clientBoundImmediately(networkSettingsPacket)
                 novaRelaySession.server.setCompression(PacketCompressionAlgorithm.ZLIB)
-                println("Client enabled compression: ZLIB with threshold 1")
+                val msgCompress = "Sent NetworkSettings(ZLIB, threshold=1) and enabled server compression"
+                println(msgCompress)
+                logger?.invoke(msgCompress)
             } catch (e: Exception) {
-                println("Failed to process network settings: ${e.message}")
+                val err = "Failed to process network settings: ${e.message}"
+                println(err)
+                logger?.invoke(err)
                 e.printStackTrace()
                 novaRelaySession.server.disconnect("Failed to setup network settings: ${e.message}")
                 return true
