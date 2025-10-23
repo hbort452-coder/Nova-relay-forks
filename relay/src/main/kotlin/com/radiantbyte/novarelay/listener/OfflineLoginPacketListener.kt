@@ -3,6 +3,7 @@ package com.radiantbyte.novarelay.listener
 import com.radiantbyte.novarelay.NovaRelaySession
 import com.radiantbyte.novarelay.util.AuthUtilsOffline
 import org.cloudburstmc.protocol.bedrock.data.PacketCompressionAlgorithm
+import org.cloudburstmc.protocol.bedrock.data.auth.AuthType
 import org.cloudburstmc.protocol.bedrock.data.auth.CertificateChainPayload
 import org.cloudburstmc.protocol.bedrock.packet.*
 import org.cloudburstmc.protocol.bedrock.util.EncryptionUtils
@@ -75,7 +76,7 @@ class OfflineLoginPacketListener(
 
                 val loginPacket = LoginPacket()
                 loginPacket.protocolVersion = novaRelaySession.server.codec.protocolVersion
-                val authPayload = CertificateChainPayload(chain)
+                val authPayload = CertificateChainPayload(chain, AuthType.SELF_SIGNED)
                 loginPacket.authPayload = authPayload
                 loginPacket.clientJwt = skinData
                 novaRelaySession.serverBoundImmediately(loginPacket)
@@ -88,6 +89,43 @@ class OfflineLoginPacketListener(
                 println("Login failed: $e")
             }
 
+            return true
+        }
+        if (packet is ServerToClientHandshakePacket) {
+            try {
+                val parts = packet.jwt.split(".")
+                if (parts.size != 3) {
+                    throw Exception("Invalid JWT format")
+                }
+
+                val headerJson = String(java.util.Base64.getUrlDecoder().decode(parts[0]))
+                val payloadJson = String(java.util.Base64.getUrlDecoder().decode(parts[1]))
+
+                val header = JSONObject(JsonUtil.parseJson(headerJson))
+                val payload = JSONObject(JsonUtil.parseJson(payloadJson))
+
+                val x5u = header.get("x5u") as? String ?: throw Exception("Missing x5u in header")
+                val serverKey = EncryptionUtils.parseKey(x5u)
+
+                val saltString = payload.get("salt") as? String ?: throw Exception("Missing salt in payload")
+                val salt = java.util.Base64.getDecoder().decode(saltString)
+
+                val key = EncryptionUtils.getSecretKey(
+                    keyPair.private,
+                    serverKey,
+                    salt
+                )
+
+                novaRelaySession.client!!.enableEncryption(key)
+                println("Encryption enabled successfully (offline)")
+
+                novaRelaySession.serverBoundImmediately(ClientToServerHandshakePacket())
+            } catch (e: Exception) {
+                println("Handshake failed (offline): ${e.message}")
+                e.printStackTrace()
+                novaRelaySession.server.disconnect("Handshake failed: ${e.message}")
+                return true
+            }
             return true
         }
         return super.beforeServerBound(packet)
