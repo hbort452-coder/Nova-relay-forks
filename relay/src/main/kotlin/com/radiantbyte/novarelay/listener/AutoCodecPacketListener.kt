@@ -19,13 +19,17 @@ class AutoCodecPacketListener(
 
     companion object {
 
-        private val protocols = AutoCodecPacketListener::class.java
-            .getResourceAsStream("protocol_mapping.txt")
-            ?.bufferedReader()
-            ?.use {
-                it.readLines()
-                    .map { version -> version.toInt() }
-            } ?: emptyList()
+        private val protocols = run {
+            val stream = AutoCodecPacketListener::class.java.getResourceAsStream("/protocol_mapping.txt")
+                ?: AutoCodecPacketListener::class.java.classLoader.getResourceAsStream("protocol_mapping.txt")
+            if (stream != null) {
+                stream.bufferedReader().use { reader ->
+                    reader.readLines().map { version -> version.toInt() }
+                }
+            } else {
+                emptyList()
+            }
+        }
 
         private fun fetchCodecIfClosest(
             protocolVersion: Int
