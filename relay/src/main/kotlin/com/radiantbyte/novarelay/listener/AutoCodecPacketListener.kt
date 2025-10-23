@@ -89,21 +89,7 @@ class AutoCodecPacketListener(
                 println(msgCompress)
                 logger?.invoke(msgCompress)
 
-                // Ensure upstream server connection starts as early as possible and request its settings
-                if (!serverConnectStarted) {
-                    serverConnectStarted = true
-                    val msgConn = "Initiating upstream connection and requesting NetworkSettings"
-                    println(msgConn)
-                    logger?.invoke(msgConn)
-                    novaRelaySession.novaRelay.connectToServer {
-                        val req = RequestNetworkSettingsPacket()
-                        req.protocolVersion = protocolVersion
-                        novaRelaySession.serverBoundImmediately(req)
-                        val msgReq = "Forwarded RequestNetworkSettings to upstream with protocol=$protocolVersion"
-                        println(msgReq)
-                        logger?.invoke(msgReq)
-                    }
-                }
+                // MuCuteRelay approach: do not initiate upstream here; let login listeners drive it.
             } catch (e: Exception) {
                 val err = "Failed to process network settings: ${e.message}"
                 println(err)
