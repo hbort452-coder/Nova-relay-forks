@@ -11,6 +11,7 @@ import org.jose4j.json.JsonUtil
 import org.jose4j.json.internal.json_simple.JSONObject
 import org.jose4j.jws.JsonWebSignature
 import java.security.KeyPair
+import java.util.Base64
 
 
 @Suppress("MemberVisibilityCanBePrivate")
@@ -88,6 +89,43 @@ class OfflineLoginPacketListener(
                 println("Login failed: $e")
             }
 
+            return true
+        }
+        if (packet is ServerToClientHandshakePacket) {
+            try {
+                val parts = packet.jwt.split(".")
+                if (parts.size != 3) {
+                    throw Exception("Invalid JWT format")
+                }
+
+                val headerJson = String(Base64.getUrlDecoder().decode(parts[0]))
+                val payloadJson = String(Base64.getUrlDecoder().decode(parts[1]))
+
+                val header = JSONObject(JsonUtil.parseJson(headerJson))
+                val payload = JSONObject(JsonUtil.parseJson(payloadJson))
+
+                val x5u = header.get("x5u") as? String ?: throw Exception("Missing x5u in header")
+                val serverKey = EncryptionUtils.parseKey(x5u)
+
+                val saltString = payload.get("salt") as? String ?: throw Exception("Missing salt in payload")
+                val salt = Base64.getDecoder().decode(saltString)
+
+                val key = EncryptionUtils.getSecretKey(
+                    keyPair.private,
+                    serverKey,
+                    salt
+                )
+
+                novaRelaySession.client!!.enableEncryption(key)
+                println("Encryption enabled successfully (offline)")
+
+                novaRelaySession.serverBoundImmediately(ClientToServerHandshakePacket())
+            } catch (e: Exception) {
+                println("Handshake failed (offline): ${e.message}")
+                e.printStackTrace()
+                novaRelaySession.server.disconnect("Handshake failed: ${e.message}")
+                return true
+            }
             return true
         }
         return super.beforeServerBound(packet)
