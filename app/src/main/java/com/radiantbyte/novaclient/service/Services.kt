@@ -236,7 +236,7 @@ object Services {
                         })
                         listeners.add(AutoCodecPacketListener(this) { msg -> logLine(msg) })
                         if (selectedAccount == null) {
-                            listeners.add(OfflineLoginPacketListener(this) { msg -> logLine(msg) })
+                            listeners.add(OfflineLoginPacketListener(this, logger = { msg -> logLine(msg) }, passthroughLogin = true))
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
                         }
@@ -266,7 +266,7 @@ object Services {
                         })
                         listeners.add(AutoCodecPacketListener(this) { msg -> logLine(msg) })
                         if (selectedAccount == null) {
-                            listeners.add(OfflineLoginPacketListener(this) { msg -> logLine(msg) })
+                            listeners.add(OfflineLoginPacketListener(this, logger = { msg -> logLine(msg) }, passthroughLogin = true))
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
                         }
