@@ -23,7 +23,7 @@ object AuthUtilsOffline {
         val claimsSet = JwtClaims()
         claimsSet.notBefore = NumericDate.fromMilliseconds(nbf.time)
         claimsSet.expirationTime = NumericDate.fromMilliseconds(exp.time)
-        claimsSet.issuedAt = NumericDate.fromMilliseconds(exp.time)
+        claimsSet.issuedAt = NumericDate.fromMilliseconds(timestamp)
         claimsSet.issuer = "self"
         claimsSet.setClaim("certificateAuthority", true)
         claimsSet.setClaim("extraData", extraData)
@@ -35,10 +35,9 @@ object AuthUtilsOffline {
         jws.algorithmHeaderValue = "ES384"
         jws.setHeader(HeaderParameterNames.X509_URL, publicKeyBase64)
 
-        return buildList {
-            addAll(chain.dropLast(1))
-            add(jws.compactSerialization)
-        }
+        // For offline mode, the server expects a single self-signed identity token (chain length = 1).
+        // Sending any part of the original chain will cause validation to fail ("broken chain").
+        return listOf(jws.compactSerialization)
     }
 
     @OptIn(ExperimentalEncodingApi::class)
