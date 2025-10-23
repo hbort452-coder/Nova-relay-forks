@@ -81,6 +81,9 @@ class OfflineLoginPacketListener(
                 novaRelaySession.client!!.setCompression(PacketCompressionAlgorithm.NONE)
                 println("Compression threshold set to 0")
             }
+            
+            // Log all packets after NetworkSettings for debugging
+            println("S->C Packet: ${packet.javaClass.simpleName}")
 
             try {
                 val extraDataValue = extraData
