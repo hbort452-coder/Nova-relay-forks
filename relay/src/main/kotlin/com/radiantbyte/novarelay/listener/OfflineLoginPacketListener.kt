@@ -48,9 +48,9 @@ class OfflineLoginPacketListener(
                         )
 
                     println("Handle offline login data")
-                println("Chain length: ${chain.size}")
-                println("ExtraData keys: ${extraData.keys}")
-                println("SkinData keys: ${skinData.keys}")
+                println("Chain length: ${chain?.size ?: 0}")
+                println("ExtraData keys: ${extraData?.keys ?: "null"}")
+                println("SkinData keys: ${skinData?.keys ?: "null"}")
 
                     val jws = JsonWebSignature()
                     jws.compactSerialization = packet.clientJwt
@@ -71,6 +71,8 @@ class OfflineLoginPacketListener(
 
     override fun beforeServerBound(packet: BedrockPacket): Boolean {
         if (packet is NetworkSettingsPacket) {
+            println("S->C NetworkSettingsPacket NetworkSettingsPacket(compressionThreshold=${packet.compressionThreshold}, compressionAlgorithm=${packet.compressionAlgorithm}, clientThrottleEnabled=${packet.clientThrottleEnabled}, clientThrottleThreshold=${packet.clientThrottleThreshold}, clientThrottleScalar=${packet.clientThrottleScalar})")
+            
             val threshold = packet.compressionThreshold
             if (threshold > 0) {
                 novaRelaySession.client!!.setCompression(packet.compressionAlgorithm)
@@ -78,13 +80,6 @@ class OfflineLoginPacketListener(
             } else {
                 novaRelaySession.client!!.setCompression(PacketCompressionAlgorithm.NONE)
                 println("Compression threshold set to 0")
-            }
-            
-            println("S->C NetworkSettingsPacket NetworkSettingsPacket(compressionThreshold=${packet.compressionThreshold}, compressionAlgorithm=${packet.compressionAlgorithm}, clientThrottleEnabled=${packet.clientThrottleEnabled}, clientThrottleThreshold=${packet.clientThrottleThreshold}, clientThrottleScalar=${packet.clientThrottleScalar})")
-            
-            // Log if compression settings don't match expected values
-            if (packet.compressionThreshold != 0) {
-                println("WARNING: Expected compression threshold 0, got ${packet.compressionThreshold}")
             }
 
             try {
