@@ -59,6 +59,11 @@ class AutoCodecPacketListener(
                 val protocolVersion = packet.protocolVersion
                 val bedrockCodec = patchCodecIfNeeded(fetchCodecIfClosest(protocolVersion))
                 println("Fetched bedrock codec: ${bedrockCodec.protocolVersion} for protocol: $protocolVersion")
+                
+                // Log if we're using a different codec than expected
+                if (bedrockCodec.protocolVersion != protocolVersion) {
+                    println("Using codec ${bedrockCodec.protocolVersion} for client protocol $protocolVersion (closest match)")
+                }
 
                 novaRelaySession.server.codec = bedrockCodec
                 novaRelaySession.server.peer.codecHelper.apply {
@@ -75,12 +80,15 @@ class AutoCodecPacketListener(
                 }
 
                 val networkSettingsPacket = NetworkSettingsPacket()
-                networkSettingsPacket.compressionThreshold = 1
+                networkSettingsPacket.compressionThreshold = 0
                 networkSettingsPacket.compressionAlgorithm = PacketCompressionAlgorithm.ZLIB
+                networkSettingsPacket.clientThrottleEnabled = false
+                networkSettingsPacket.clientThrottleThreshold = 0
+                networkSettingsPacket.clientThrottleScalar = 0.0f
 
                 novaRelaySession.clientBoundImmediately(networkSettingsPacket)
                 novaRelaySession.server.setCompression(PacketCompressionAlgorithm.ZLIB)
-                println("Client enabled compression: ZLIB with threshold 1")
+                println("Sent NetworkSettings(ZLIB, threshold=0) and enabled server compression")
             } catch (e: Exception) {
                 println("Failed to process network settings: ${e.message}")
                 e.printStackTrace()
