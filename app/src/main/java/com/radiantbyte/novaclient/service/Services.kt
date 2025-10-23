@@ -126,6 +126,8 @@ object Services {
             }
 
             val selectedAccount = AccountManager.selectedAccount
+            val settingsPrefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            val offlineModeEnabled = settingsPrefs.getBoolean("offline_mode_enabled", false)
 
             runCatching {
                 clearNetworkCaches()
@@ -143,7 +145,7 @@ object Services {
                     ).capture(remoteAddress = remoteAddress) {
                         initModules(this)
                         listeners.add(AutoCodecPacketListener(this))
-                        if (selectedAccount == null) {
+                        if (offlineModeEnabled || selectedAccount == null) {
                             listeners.add(OfflineLoginPacketListener(this))
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
@@ -157,7 +159,7 @@ object Services {
                     ) {
                         initModules(this)
                         listeners.add(AutoCodecPacketListener(this))
-                        if (selectedAccount == null) {
+                        if (offlineModeEnabled || selectedAccount == null) {
                             listeners.add(OfflineLoginPacketListener(this))
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))

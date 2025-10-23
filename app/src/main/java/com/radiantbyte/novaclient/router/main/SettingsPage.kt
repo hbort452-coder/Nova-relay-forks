@@ -99,6 +99,10 @@ fun SettingsPageContent() {
         val sharedPreferences = remember {
             context.getSharedPreferences("settings", Context.MODE_PRIVATE)
         }
+        var offlineModeEnabled by remember {
+            mutableStateOf(sharedPreferences.getBoolean("offline_mode_enabled", false))
+        }
+
 
         var showOpacityDialog by remember { mutableStateOf(false) }
         var showColumnsDialog by remember { mutableStateOf(false) }
@@ -218,6 +222,46 @@ fun SettingsPageContent() {
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
+                // Offline Mode Toggle
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    onClick = {
+                        val newValue = !offlineModeEnabled
+                        offlineModeEnabled = newValue
+                        sharedPreferences.edit { putBoolean("offline_mode_enabled", newValue) }
+                    }
+                ) {
+                    Row(
+                        Modifier.padding(15.dp),
+                        horizontalArrangement = Arrangement.spacedBy(15.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Offline mode",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = "Use self-signed login without Xbox Live (applies on next start)",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Checkbox(
+                            checked = offlineModeEnabled,
+                            onCheckedChange = { checked ->
+                                offlineModeEnabled = checked
+                                sharedPreferences.edit { putBoolean("offline_mode_enabled", checked) }
+                            }
+                        )
+                    }
+                }
+
                 // Opacity Settings Card
                 OutlinedCard(
                     modifier = Modifier.fillMaxWidth(),
