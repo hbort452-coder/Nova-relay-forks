@@ -32,6 +32,8 @@ class OfflineLoginPacketListener(
     private var extraData: JSONObject? = null
     private var skinData: JSONObject? = null
     private var originalLoginPacket: LoginPacket? = null
+    private var upstreamNetworkSettingsReceived: Boolean = false
+    private var originalLoginForwarded: Boolean = false
 
     override fun beforeClientBound(packet: BedrockPacket): Boolean {
         if (packet is LoginPacket) {
@@ -60,7 +62,22 @@ class OfflineLoginPacketListener(
 
                 connectServer()
 
-                // If passthrough, we will forward after receiving NetworkSettings from server
+                // If upstream already sent NetworkSettings, forward now
+                if (passthroughLogin && upstreamNetworkSettingsReceived && !originalLoginForwarded) {
+                    runCatching {
+                        novaRelaySession.serverBoundImmediately(originalLoginPacket!!)
+                        originalLoginForwarded = true
+                        val msgFwd = "Forwarded original LoginPacket to server (passthrough, on login arrival)"
+                        println(msgFwd)
+                        logger?.invoke(msgFwd)
+                    }.onFailure { e ->
+                        novaRelaySession.clientBound(DisconnectPacket().apply { kickMessage = e.toString() })
+                        val err = "Failed to forward original LoginPacket: ${e.message}"
+                        println(err)
+                        logger?.invoke(err)
+                    }
+                }
+
                 return true
             }
         }
@@ -81,24 +98,24 @@ class OfflineLoginPacketListener(
                 println(msg)
                 logger?.invoke(msg)
             }
+            upstreamNetworkSettingsReceived = true
 
-            // If passthrough mode, forward client's original LoginPacket unchanged
-            originalLoginPacket?.let { original ->
+            // If passthrough mode and we already have client's original LoginPacket, forward it now
+            if (passthroughLogin && originalLoginPacket != null && !originalLoginForwarded) {
                 runCatching {
-                    novaRelaySession.serverBoundImmediately(original)
-                    println("Forwarded original LoginPacket to server (passthrough)")
-                    logger?.invoke("Forwarded original LoginPacket to server (passthrough)")
+                    novaRelaySession.serverBoundImmediately(originalLoginPacket!!)
+                    originalLoginForwarded = true
+                    val msgFwd = "Forwarded original LoginPacket to server (passthrough, on upstream NS)"
+                    println(msgFwd)
+                    logger?.invoke(msgFwd)
                 }.onFailure { e ->
                     novaRelaySession.clientBound(DisconnectPacket().apply { kickMessage = e.toString() })
                     val err = "Failed to forward original LoginPacket: ${e.message}"
                     println(err)
                     logger?.invoke(err)
                 }
-                return true
-            }
-
-            // Fallback to offline generated login if passthrough not enabled or no original packet
-            if (!passthroughLogin) {
+            } else if (!passthroughLogin) {
+                // Fallback to offline generated login if not using passthrough
                 try {
                     val chain = AuthUtilsOffline.fetchOfflineChain(keyPair, extraData!!, chain!!)
                     val skinData = AuthUtilsOffline.fetchOfflineSkinData(keyPair, skinData!!)
@@ -113,22 +130,57 @@ class OfflineLoginPacketListener(
                     println("Login success")
                     logger?.invoke("Login success")
                 } catch (e: Throwable) {
-                    novaRelaySession.clientBound(DisconnectPacket().apply {
-                        kickMessage = e.toString()
-                    })
+                    novaRelaySession.clientBound(DisconnectPacket().apply { kickMessage = e.toString() })
                     val err = "Login failed: $e"
                     println(err)
                     logger?.invoke(err)
                 }
-                return true
             }
 
-            return false
+            // Consume upstream NetworkSettings; client already received ours
+            return true
         }
         if (packet is ServerToClientHandshakePacket) {
-            // In passthrough mode, do not perform encryption here; let the client and server complete handshake.
-            // This listener will not consume the packet.
-            return false
+            // Complete upstream encryption using our offline key pair
+            try {
+                val parts = packet.jwt.split(".")
+                if (parts.size != 3) {
+                    throw Exception("Invalid JWT format")
+                }
+
+                val headerJson = String(Base64.getUrlDecoder().decode(parts[0]))
+                val payloadJson = String(Base64.getUrlDecoder().decode(parts[1]))
+
+                val header = JSONObject(JsonUtil.parseJson(headerJson))
+                val payload = JSONObject(JsonUtil.parseJson(payloadJson))
+
+                val x5u = header.get("x5u") as? String ?: throw Exception("Missing x5u in header")
+                val serverKey = EncryptionUtils.parseKey(x5u)
+
+                val saltString = payload.get("salt") as? String ?: throw Exception("Missing salt in payload")
+                val salt = Base64.getDecoder().decode(saltString)
+
+                val key = EncryptionUtils.getSecretKey(
+                    keyPair.private,
+                    serverKey,
+                    salt
+                )
+
+                novaRelaySession.client!!.enableEncryption(key)
+                val msg = "Encryption enabled successfully (offline passthrough)"
+                println(msg)
+                logger?.invoke(msg)
+
+                novaRelaySession.serverBoundImmediately(ClientToServerHandshakePacket())
+            } catch (e: Exception) {
+                val err = "Handshake failed (offline): ${e.message}"
+                println(err)
+                logger?.invoke(err)
+                e.printStackTrace()
+                novaRelaySession.server.disconnect("Handshake failed: ${e.message}")
+            }
+            // Do not forward handshake packet to client
+            return true
         }
         return super.beforeServerBound(packet)
     }
