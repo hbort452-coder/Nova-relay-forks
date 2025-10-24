@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovaRelay Logs</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e1e2e, #2d2d44);
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .title {
+            font-size: 2.5em;
+            color: #4a9eff;
+            text-shadow: 0 0 10px rgba(74, 158, 255, 0.3);
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #4a9eff, #6bb6ff);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(74, 158, 255, 0.3);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn.clear {
+            background: linear-gradient(45deg, #ff6b6b, #ff8e8e);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+        
+        .btn.clear:hover {
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+        
+        .btn.refresh {
+            background: linear-gradient(45deg, #51cf66, #69db7c);
+            box-shadow: 0 4px 15px rgba(81, 207, 102, 0.3);
+        }
+        
+        .btn.refresh:hover {
+            box-shadow: 0 6px 20px rgba(81, 207, 102, 0.4);
+        }
+        
+        .logs-container {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .logs-content {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #666;
+            font-size: 1.2em;
+            margin-top: 100px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #4a9eff;
+            font-size: 1.1em;
+            margin-top: 100px;
+        }
+        
+        .status {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        
+        .status.success {
+            background: rgba(81, 207, 102, 0.2);
+            color: #51cf66;
+            border: 1px solid #51cf66;
+        }
+        
+        .status.error {
+            background: rgba(255, 107, 107, 0.2);
+            color: #ff6b6b;
+            border: 1px solid #ff6b6b;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .file-label {
+            display: inline-block;
+            background: linear-gradient(45deg, #9775fa, #b197fc);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(151, 117, 250, 0.3);
+        }
+        
+        .file-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(151, 117, 250, 0.4);
+        }
+        
+        .timestamp {
+            color: #888;
+            font-size: 0.9em;
+        }
+        
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 4px 0;
+        }
+        
+        .log-entry.info {
+            color: #4a9eff;
+        }
+        
+        .log-entry.warning {
+            color: #ffd43b;
+        }
+        
+        .log-entry.error {
+            color: #ff6b6b;
+        }
+        
+        .log-entry.success {
+            color: #51cf66;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">NovaRelay Logs</h1>
+            <p class="subtitle">Просмотр и управление логами релея</p>
+        </div>
+        
+        <div class="controls">
+            <button class="btn" onclick="copyLogs()">📋 Копировать логи</button>
+            <button class="btn clear" onclick="clearLogs()">🗑️ Очистить логи</button>
+            <button class="btn refresh" onclick="refreshLogs()">🔄 Обновить</button>
+            <label for="fileInput" class="file-label">📁 Загрузить файл</label>
+            <input type="file" id="fileInput" class="file-input" accept=".txt,.log" onchange="loadFile(event)">
+        </div>
+        
+        <div class="logs-container">
+            <div id="logsContent" class="logs-content">
+                <div class="empty-state">
+                    <p>📝 Логи не загружены</p>
+                    <p>Нажмите "Обновить" или загрузите файл логов</p>
+                </div>
+            </div>
+        </div>
+        
+        <div id="status" class="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        let logs = '';
+        
+        function showStatus(message, type = 'success') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+        
+        function formatLogs(logsText) {
+            if (!logsText) return '';
+            
+            return logsText.split('\n').map(line => {
+                const timestamp = line.match(/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]/);
+                if (timestamp) {
+                    const content = line.replace(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\]/, '');
+                    const type = content.includes('ERROR') || content.includes('FAILED') ? 'error' :
+                                content.includes('WARNING') || content.includes('WARN') ? 'warning' :
+                                content.includes('SUCCESS') || content.includes('Connected') ? 'success' : 'info';
+                    
+                    return `<div class="log-entry ${type}">
+                        <span class="timestamp">[${timestamp[1]}]</span>${content}
+                    </div>`;
+                }
+                return `<div class="log-entry">${line}</div>`;
+            }).join('');
+        }
+        
+        function displayLogs() {
+            const logsContent = document.getElementById('logsContent');
+            
+            if (!logs) {
+                logsContent.innerHTML = '<div class="empty-state"><p>📝 Логи не загружены</p><p>Нажмите "Обновить" или загрузите файл логов</p></div>';
+                return;
+            }
+            
+            logsContent.innerHTML = formatLogs(logs);
+        }
+        
+        function copyLogs() {
+            if (!logs) {
+                showStatus('Нет логов для копирования', 'error');
+                return;
+            }
+            
+            navigator.clipboard.writeText(logs).then(() => {
+                showStatus('Логи скопированы в буфер обмена!');
+            }).catch(err => {
+                showStatus('Ошибка копирования: ' + err.message, 'error');
+            });
+        }
+        
+        function clearLogs() {
+            logs = '';
+            displayLogs();
+            showStatus('Логи очищены');
+        }
+        
+        function refreshLogs() {
+            // В реальном приложении здесь был бы запрос к серверу
+            showStatus('Обновление логов...');
+            
+            // Симуляция загрузки
+            setTimeout(() => {
+                // Попробуем загрузить из localStorage
+                const savedLogs = localStorage.getItem('novarelay_logs');
+                if (savedLogs) {
+                    logs = savedLogs;
+                    displayLogs();
+                    showStatus('Логи обновлены из сохраненных данных');
+                } else {
+                    showStatus('Сохраненные логи не найдены', 'error');
+                }
+            }, 1000);
+        }
+        
+        function loadFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                logs = e.target.result;
+                localStorage.setItem('novarelay_logs', logs);
+                displayLogs();
+                showStatus(`Файл "${file.name}" загружен успешно`);
+            };
+            reader.readAsText(file);
+        }
+        
+        // Загружаем сохраненные логи при загрузке страницы
+        window.onload = function() {
+            const savedLogs = localStorage.getItem('novarelay_logs');
+            if (savedLogs) {
+                logs = savedLogs;
+                displayLogs();
+            }
+        };
+        
+        // Автообновление каждые 30 секунд
+        setInterval(refreshLogs, 30000);
+    </script>
+</body>
+</html>
