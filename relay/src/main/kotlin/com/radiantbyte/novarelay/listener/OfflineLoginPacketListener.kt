@@ -71,20 +71,9 @@ class OfflineLoginPacketListener(
 
     override fun beforeServerBound(packet: BedrockPacket): Boolean {
         if (packet is NetworkSettingsPacket) {
-            println("S->C NetworkSettingsPacket NetworkSettingsPacket(compressionThreshold=${packet.compressionThreshold}, compressionAlgorithm=${packet.compressionAlgorithm}, clientThrottleEnabled=${packet.clientThrottleEnabled}, clientThrottleThreshold=${packet.clientThrottleThreshold}, clientThrottleScalar=${packet.clientThrottleScalar})")
+            println("S->C NetworkSettingsPacket from server - BLOCKED (relay already sent its own)")
+            // Don't forward server's NetworkSettings to client - relay already sent its own
             
-            val threshold = packet.compressionThreshold
-            if (threshold > 0) {
-                novaRelaySession.client!!.setCompression(packet.compressionAlgorithm)
-                println("Compression threshold set to $threshold")
-            } else {
-                novaRelaySession.client!!.setCompression(PacketCompressionAlgorithm.NONE)
-                println("Compression threshold set to 0")
-            }
-            
-            // Log all packets after NetworkSettings for debugging
-            println("S->C Packet: ${packet.javaClass.simpleName}")
-
             try {
                 val extraDataValue = extraData
                 val chainValue = chain
@@ -113,7 +102,7 @@ class OfflineLoginPacketListener(
                     kickMessage = "Offline authentication failed: ${e.message}"
                 })
             }
-
+            
             return true
         }
         if (packet is ServerToClientHandshakePacket) {
