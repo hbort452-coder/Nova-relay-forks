@@ -13,18 +13,23 @@ import org.cloudburstmc.protocol.bedrock.packet.*
 @Suppress("MemberVisibilityCanBePrivate")
 class AutoCodecPacketListener(
     val novaRelaySession: NovaRelaySession,
-    val patchCodec: Boolean = true
+    val patchCodec: Boolean = true,
+    private val logger: ((String) -> Unit)? = null
 ) : NovaRelayPacketListener {
 
     companion object {
 
-        private val protocols = AutoCodecPacketListener::class.java
-            .getResourceAsStream("protocol_mapping.txt")
-            ?.bufferedReader()
-            ?.use {
-                it.readLines()
-                    .map { version -> version.toInt() }
-            } ?: emptyList()
+        private val protocols = run {
+            val stream = AutoCodecPacketListener::class.java.getResourceAsStream("/protocol_mapping.txt")
+                ?: AutoCodecPacketListener::class.java.classLoader.getResourceAsStream("protocol_mapping.txt")
+            if (stream != null) {
+                stream.bufferedReader().use { reader ->
+                    reader.readLines().map { version -> version.toInt() }
+                }
+            } else {
+                emptyList()
+            }
+        }
 
         private fun fetchCodecIfClosest(
             protocolVersion: Int
@@ -53,12 +58,16 @@ class AutoCodecPacketListener(
         }
     }
 
+    private var serverConnectStarted: Boolean = false
+
     override fun beforeClientBound(packet: BedrockPacket): Boolean {
         if (packet is RequestNetworkSettingsPacket) {
             try {
                 val protocolVersion = packet.protocolVersion
                 val bedrockCodec = patchCodecIfNeeded(fetchCodecIfClosest(protocolVersion))
-                println("Fetched bedrock codec: ${bedrockCodec.protocolVersion} for protocol: $protocolVersion")
+                val msgCodec = "Fetched bedrock codec: ${bedrockCodec.protocolVersion} for protocol: $protocolVersion"
+                println(msgCodec)
+                logger?.invoke(msgCodec)
 
                 novaRelaySession.server.codec = bedrockCodec
                 novaRelaySession.server.peer.codecHelper.apply {
@@ -75,14 +84,20 @@ class AutoCodecPacketListener(
                 }
 
                 val networkSettingsPacket = NetworkSettingsPacket()
-                networkSettingsPacket.compressionThreshold = 1
+                networkSettingsPacket.compressionThreshold = 0
                 networkSettingsPacket.compressionAlgorithm = PacketCompressionAlgorithm.ZLIB
 
                 novaRelaySession.clientBoundImmediately(networkSettingsPacket)
                 novaRelaySession.server.setCompression(PacketCompressionAlgorithm.ZLIB)
-                println("Client enabled compression: ZLIB with threshold 1")
+                val msgCompress = "Sent NetworkSettings(ZLIB, threshold=0) and enabled server compression"
+                println(msgCompress)
+                logger?.invoke(msgCompress)
+
+                // MuCuteRelay approach: do not initiate upstream here; let login listeners drive it.
             } catch (e: Exception) {
-                println("Failed to process network settings: ${e.message}")
+                val err = "Failed to process network settings: ${e.message}"
+                println(err)
+                logger?.invoke(err)
                 e.printStackTrace()
                 novaRelaySession.server.disconnect("Failed to setup network settings: ${e.message}")
                 return true

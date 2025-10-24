@@ -27,9 +27,16 @@ import com.radiantbyte.novarelay.listener.AutoCodecPacketListener
 import com.radiantbyte.novarelay.listener.GamingPacketHandler
 import com.radiantbyte.novarelay.listener.OfflineLoginPacketListener
 import com.radiantbyte.novarelay.listener.OnlineLoginPacketListener
+import com.radiantbyte.novarelay.listener.NovaRelayPacketListener
 import com.radiantbyte.novarelay.util.captureGamePacket
 import com.radiantbyte.novaclient.util.ServerCompatUtils
+import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket
+import java.io.BufferedWriter
 import java.io.File
+import java.io.FileWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.concurrent.thread
 
 @Suppress("MemberVisibilityCanBePrivate")
@@ -44,6 +51,72 @@ object Services {
     private var windowManager: WindowManager? = null
 
     var isActive by mutableStateOf(false)
+
+    // Packet file logging
+    private var packetLogWriter: BufferedWriter? = null
+    private val packetLogLock = Any()
+
+    private fun startPacketLogging(context: Context) {
+        try {
+            val dir = context.getExternalFilesDir(null) ?: File(context.filesDir, "")
+            val file = File(dir, "log.txt")
+            packetLogWriter = BufferedWriter(FileWriter(file, true)).also { writer ->
+                writer.write("=== Session start ${timestamp()} ===\n")
+                writer.flush()
+            }
+            Log.d("Services", "Packet logging to: ${file.absolutePath}")
+        } catch (e: Exception) {
+            Log.e("Services", "Failed to start packet logging: ${e.message}")
+        }
+    }
+
+    private fun stopPacketLogging() {
+        try {
+            synchronized(packetLogLock) {
+                packetLogWriter?.apply {
+                    write("=== Session end ${timestamp()} ===\n")
+                    flush()
+                    close()
+                }
+                packetLogWriter = null
+            }
+        } catch (e: Exception) {
+            Log.e("Services", "Failed to stop packet logging: ${e.message}")
+        }
+    }
+
+    private fun logPacket(direction: String, packet: BedrockPacket) {
+        val line = "[${timestamp()}] $direction ${packet.javaClass.simpleName} ${safeToString(packet)}"
+        try {
+            synchronized(packetLogLock) {
+                packetLogWriter?.let { writer ->
+                    writer.write(line)
+                    writer.newLine()
+                    writer.flush()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Services", "Failed to write packet log: ${e.message}")
+        }
+    }
+
+    private fun logLine(message: String) {
+        val line = "[${timestamp()}] $message"
+        try {
+            synchronized(packetLogLock) {
+                packetLogWriter?.let { writer ->
+                    writer.write(line)
+                    writer.newLine()
+                    writer.flush()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Services", "Failed to write log line: ${e.message}")
+        }
+    }
+
+    private fun timestamp(): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
+    private fun safeToString(packet: BedrockPacket): String = runCatching { packet.toString() }.getOrElse { "" }
 
     fun toggle(context: Context, captureModeModel: CaptureModeModel) {
         if (!isActive) {
@@ -107,6 +180,9 @@ object Services {
 
         setupOverlay(context)
 
+        // Start packet logging to Android/data/.../files/log.txt
+        startPacketLogging(context)
+
         thread = thread(
             name = "NovaRelayThread",
             priority = Thread.MAX_PRIORITY
@@ -142,9 +218,25 @@ object Services {
                         serverConfig = serverConfig
                     ).capture(remoteAddress = remoteAddress) {
                         initModules(this)
-                        listeners.add(AutoCodecPacketListener(this))
+                        // Packet logging listener first to capture packets before others possibly consume them
+                        listeners.add(object : NovaRelayPacketListener {
+                            override fun beforeClientBound(packet: BedrockPacket): Boolean {
+                                logPacket("C->S", packet)
+                                return false
+                            }
+
+                            override fun beforeServerBound(packet: BedrockPacket): Boolean {
+                                logPacket("S->C", packet)
+                                return false
+                            }
+
+                            override fun onDisconnect(reason: String) {
+                                logLine("Disconnected: $reason")
+                            }
+                        })
+                        listeners.add(AutoCodecPacketListener(this) { msg -> logLine(msg) })
                         if (selectedAccount == null) {
-                            listeners.add(OfflineLoginPacketListener(this))
+                            listeners.add(OfflineLoginPacketListener(this, logger = { msg -> logLine(msg) }, passthroughLogin = false))
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
                         }
@@ -156,9 +248,25 @@ object Services {
                         remoteAddress = remoteAddress
                     ) {
                         initModules(this)
-                        listeners.add(AutoCodecPacketListener(this))
+                        // Packet logging listener first to capture packets before others possibly consume them
+                        listeners.add(object : NovaRelayPacketListener {
+                            override fun beforeClientBound(packet: BedrockPacket): Boolean {
+                                logPacket("C->S", packet)
+                                return false
+                            }
+
+                            override fun beforeServerBound(packet: BedrockPacket): Boolean {
+                                logPacket("S->C", packet)
+                                return false
+                            }
+
+                            override fun onDisconnect(reason: String) {
+                                logLine("Disconnected: $reason")
+                            }
+                        })
+                        listeners.add(AutoCodecPacketListener(this) { msg -> logLine(msg) })
                         if (selectedAccount == null) {
-                            listeners.add(OfflineLoginPacketListener(this))
+                            listeners.add(OfflineLoginPacketListener(this, logger = { msg -> logLine(msg) }, passthroughLogin = false))
                         } else {
                             listeners.add(OnlineLoginPacketListener(this, selectedAccount))
                         }
@@ -209,6 +317,7 @@ object Services {
             thread = null
 
             Log.d("Services", "NovaRelay service stopped and cleaned up")
+            stopPacketLogging()
         }
     }
 

@@ -87,6 +87,11 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.shape.CircleShape
 import com.radiantbyte.novaclient.overlay.GUITheme
 import com.radiantbyte.novaclient.overlay.NovaOverlayManager
+import androidx.core.content.FileProvider
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Share
+import android.content.Intent
+import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -461,6 +466,83 @@ fun SettingsPageContent() {
                                 stringResource(R.string.overlay_border_color_description),
                                 style = MaterialTheme.typography.bodySmall
                             )
+                        }
+                    }
+                }
+
+                // Logs Management Card
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Column(
+                        modifier = Modifier.padding(15.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(15.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Rounded.BugReport,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Logs",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Text(
+                                    "Export or share relay packet logs",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                try {
+                                    val logFileCandidates = listOf(
+                                        File(context.getExternalFilesDir(null), "log.txt"),
+                                        File(context.filesDir, "log.txt")
+                                    )
+                                    val existing = logFileCandidates.firstOrNull { it.exists() }
+                                    if (existing == null) {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("No log file found yet")
+                                        }
+                                    } else {
+                                        val uri: Uri = FileProvider.getUriForFile(
+                                            context,
+                                            context.packageName + ".provider",
+                                            existing
+                                        )
+                                        val share = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_STREAM, uri)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(
+                                            Intent.createChooser(share, "Share Nova logs")
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Failed to share logs")
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Rounded.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Share Logs")
                         }
                     }
                 }
