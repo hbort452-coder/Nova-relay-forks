@@ -36,24 +36,34 @@ class OfflineLoginPacketListener(
         if (packet is LoginPacket) {
             val authPayload = packet.authPayload
             if (authPayload is CertificateChainPayload) {
-                chain = authPayload.chain
-                extraData =
-                    JSONObject(
-                        JsonUtils.childAsType(
-                            EncryptionUtils.validateChain(chain).rawIdentityClaims(),
-                            "extraData",
-                            Map::class.java
+                try {
+                    chain = authPayload.chain
+                    extraData =
+                        JSONObject(
+                            JsonUtils.childAsType(
+                                EncryptionUtils.validateChain(chain).rawIdentityClaims(),
+                                "extraData",
+                                Map::class.java
+                            )
                         )
-                    )
 
-                println("Handle offline login data")
+                    println("Handle offline login data")
+                println("Chain length: ${chain?.size ?: 0}")
+                println("ExtraData keys: ${extraData?.keys ?: "null"}")
+                println("SkinData keys: ${skinData?.keys ?: "null"}")
 
-                val jws = JsonWebSignature()
-                jws.compactSerialization = packet.clientJwt
+                    val jws = JsonWebSignature()
+                    jws.compactSerialization = packet.clientJwt
 
-                skinData = JSONObject(JsonUtil.parseJson(jws.unverifiedPayload))
-                connectServer()
-                return true
+                    skinData = JSONObject(JsonUtil.parseJson(jws.unverifiedPayload))
+                    connectServer()
+                    return true
+                } catch (e: Exception) {
+                    println("Failed to process offline login: ${e.message}")
+                    e.printStackTrace()
+                    novaRelaySession.server.disconnect("Failed to process offline login: ${e.message}")
+                    return true
+                }
             }
         }
         return false
@@ -61,21 +71,24 @@ class OfflineLoginPacketListener(
 
     override fun beforeServerBound(packet: BedrockPacket): Boolean {
         if (packet is NetworkSettingsPacket) {
-            val threshold = packet.compressionThreshold
-            if (threshold > 0) {
-                novaRelaySession.client!!.setCompression(packet.compressionAlgorithm)
-                println("Compression threshold set to $threshold")
-            } else {
-                novaRelaySession.client!!.setCompression(PacketCompressionAlgorithm.NONE)
-                println("Compression threshold set to 0")
-            }
-
+            println("S->C NetworkSettingsPacket from server - BLOCKED (relay already sent its own)")
+            // Don't forward server's NetworkSettings to client - relay already sent its own
+            
             try {
-                val chain = AuthUtilsOffline.fetchOfflineChain(keyPair, extraData!!, chain!!)
-                val skinData = AuthUtilsOffline.fetchOfflineSkinData(keyPair, skinData!!)
+                val extraDataValue = extraData
+                val chainValue = chain
+                val skinDataValue = skinData
+                
+                if (extraDataValue == null || chainValue == null || skinDataValue == null) {
+                    throw Exception("Missing authentication data for offline mode")
+                }
+
+                val chain = AuthUtilsOffline.fetchOfflineChain(keyPair, extraDataValue, chainValue)
+                val skinData = AuthUtilsOffline.fetchOfflineSkinData(keyPair, skinDataValue)
 
                 val loginPacket = LoginPacket()
                 loginPacket.protocolVersion = novaRelaySession.server.codec.protocolVersion
+                println("Sending LoginPacket with protocol version: ${loginPacket.protocolVersion}")
                 val authPayload = CertificateChainPayload(chain, AuthType.SELF_SIGNED)
                 loginPacket.authPayload = authPayload
                 loginPacket.clientJwt = skinData
@@ -83,12 +96,13 @@ class OfflineLoginPacketListener(
 
                 println("Login success")
             } catch (e: Throwable) {
+                println("Login failed: ${e.message}")
+                e.printStackTrace()
                 novaRelaySession.clientBound(DisconnectPacket().apply {
-                    kickMessage = e.toString()
+                    kickMessage = "Offline authentication failed: ${e.message}"
                 })
-                println("Login failed: $e")
             }
-
+            
             return true
         }
         if (packet is ServerToClientHandshakePacket) {
@@ -132,12 +146,19 @@ class OfflineLoginPacketListener(
     }
 
     private fun connectServer() {
-        novaRelaySession.novaRelay.connectToServer {
-            println("Connected to server")
+        try {
+            novaRelaySession.novaRelay.connectToServer {
+                println("Connected to server")
 
-            val packet = RequestNetworkSettingsPacket()
-            packet.protocolVersion = novaRelaySession.server.codec.protocolVersion
-            novaRelaySession.serverBoundImmediately(packet)
+                val packet = RequestNetworkSettingsPacket()
+                packet.protocolVersion = novaRelaySession.server.codec.protocolVersion
+                novaRelaySession.serverBoundImmediately(packet)
+                println("Forwarded RequestNetworkSettings to upstream with protocol=${packet.protocolVersion}")
+            }
+        } catch (e: Exception) {
+            println("Failed to connect to server: ${e.message}")
+            e.printStackTrace()
+            novaRelaySession.server.disconnect("Failed to connect to server: ${e.message}")
         }
     }
 
